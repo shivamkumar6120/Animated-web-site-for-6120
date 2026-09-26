@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { CONFIG } from '../config';
 import { celestialAudio } from '../utils/audioSynth';
+import { trackVisitorEvent, sendWhisperMessage } from '../utils/tracker';
 
 export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
   const [loveShowerActive, setLoveShowerActive] = useState(false);
   const [showerCount, setShowerCount] = useState(0);
+
+  // Whisper message state
+  const [whisperText, setWhisperText] = useState('');
+  const [whisperSending, setWhisperSending] = useState(false);
+  const [whisperSent, setWhisperSent] = useState(false);
 
   const handleSendLove = (e) => {
     if (e && e.preventDefault && e.type === 'touchstart') {
@@ -35,6 +41,25 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
     setTimeout(() => {
       setLoveShowerActive(false);
     }, 2800);
+
+    trackVisitorEvent('love_shower_sent', { showerCount: showerCount + 1 });
+  };
+
+  const handleWhisperSubmit = async (e) => {
+    e.preventDefault();
+    if (!whisperText.trim() || whisperSending) return;
+
+    setWhisperSending(true);
+    celestialAudio.playBurstChime();
+
+    if (triggerBurst) {
+      triggerBurst(window.innerWidth / 2, window.innerHeight * 0.75, 45, false);
+    }
+
+    await sendWhisperMessage(whisperText);
+    setWhisperSending(false);
+    setWhisperSent(true);
+    setWhisperText('');
   };
 
   return (
@@ -56,7 +81,7 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
       <div
         style={{
           position: 'absolute',
-          top: '42%',
+          top: '38%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 'clamp(280px, 85vw, 750px)',
@@ -73,7 +98,7 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
       <div
         style={{
           position: 'absolute',
-          top: '42%',
+          top: '38%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 'clamp(240px, 65vw, 500px)',
@@ -87,7 +112,7 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
       <div
         style={{
           position: 'absolute',
-          top: '42%',
+          top: '38%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 'clamp(280px, 75vw, 620px)',
@@ -124,26 +149,10 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
           />
         </svg>
 
-        <span
-          style={{
-            position: 'absolute',
-            top: '-8px',
-            right: '-8px',
-            fontSize: '1.2rem',
-            animation: 'floatSlow 3s ease-in-out infinite'
-          }}
-        >
+        <span style={{ position: 'absolute', top: '-8px', right: '-8px', fontSize: '1.2rem', animation: 'floatSlow 3s ease-in-out infinite' }}>
           ✨
         </span>
-        <span
-          style={{
-            position: 'absolute',
-            bottom: '0',
-            left: '-10px',
-            fontSize: '1.2rem',
-            animation: 'floatSlow 3.5s ease-in-out infinite 1s'
-          }}
-        >
+        <span style={{ position: 'absolute', bottom: '0', left: '-10px', fontSize: '1.2rem', animation: 'floatSlow 3.5s ease-in-out infinite 1s' }}>
           💖
         </span>
       </div>
@@ -236,7 +245,7 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
           justifyContent: 'center',
           gap: '10px',
           outline: 'none',
-          marginBottom: '40px',
+          marginBottom: '32px',
           touchAction: 'manipulation',
           transform: loveShowerActive ? 'scale(1.05)' : 'scale(1)',
           transition: 'all 0.3s ease'
@@ -260,7 +269,132 @@ export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
         </p>
       )}
 
-      {/* Romantic Cinematic Ending Tag */}
+      {/* ROMANTIC WHISPER / MESSAGE BOX FOR NISHI */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '560px',
+          background: 'rgba(15, 6, 26, 0.7)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 117, 143, 0.3)',
+          borderRadius: '24px',
+          padding: '24px 20px',
+          boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(255, 45, 117, 0.05)',
+          marginBottom: '45px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
+          <span style={{ fontSize: '1.2rem' }}>💌</span>
+          <h3
+            style={{
+              fontFamily: "'Cinzel', 'Cormorant Garamond', serif",
+              fontSize: '1.2rem',
+              fontWeight: 600,
+              color: '#ffffff'
+            }}
+          >
+            Leave a Secret Whisper
+          </h3>
+        </div>
+
+        <p
+          style={{
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: '0.8rem',
+            color: 'rgba(255, 209, 225, 0.75)',
+            marginBottom: '16px'
+          }}
+        >
+          Send a thought across the stars... only my heart will receive it ✨
+        </p>
+
+        {whisperSent ? (
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: '16px',
+              background: 'rgba(255, 45, 117, 0.15)',
+              border: '1px solid rgba(255, 117, 143, 0.4)',
+              color: '#ffffff',
+              fontSize: '0.9rem',
+              animation: 'fadeIn 0.5s ease'
+            }}
+          >
+            ✨ Your whisper has reached my heart. Thank you, Nishi ❤️
+            <div style={{ marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setWhisperSent(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ff758f',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Send another message
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleWhisperSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <textarea
+              value={whisperText}
+              onChange={(e) => setWhisperText(e.target.value)}
+              placeholder="Write whatever is in your heart..."
+              maxLength={600}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '16px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 117, 143, 0.35)',
+                color: '#ffffff',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: '0.92rem',
+                outline: 'none',
+                resize: 'none',
+                lineHeight: 1.5
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={whisperSending || !whisperText.trim()}
+              style={{
+                padding: '12px 24px',
+                borderRadius: '9999px',
+                background: whisperText.trim()
+                  ? 'linear-gradient(135deg, #ff2d75, #9d4edd)'
+                  : 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                border: 'none',
+                cursor: whisperText.trim() ? 'pointer' : 'not-allowed',
+                boxShadow: whisperText.trim() ? '0 4px 20px rgba(255, 45, 117, 0.4)' : 'none',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <span>{whisperSending ? 'Sending into the Stars...' : 'Send into the Stars'}</span>
+              <span>✨</span>
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Romantic Ending Tag */}
       <div
         style={{
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',

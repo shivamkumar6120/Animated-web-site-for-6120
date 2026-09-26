@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { celestialAudio } from '../utils/audioSynth';
+import { trackVisitorEvent } from '../utils/tracker';
 
 export default function InteractiveHeart({ herName, triggerBurst }) {
   const [pulseCount, setPulseCount] = useState(0);
@@ -32,8 +33,10 @@ export default function InteractiveHeart({ herName, triggerBurst }) {
     celestialAudio.playHeartbeat();
     celestialAudio.playBurstChime();
 
-    setPulseCount((prev) => prev + 1);
-    setLastMessage(messages[(pulseCount + 1) % messages.length]);
+    const nextCount = pulseCount + 1;
+    setPulseCount(nextCount);
+    setLastMessage(messages[nextCount % messages.length]);
+    trackVisitorEvent('heart_tapped', { beats: nextCount });
   };
 
   return (

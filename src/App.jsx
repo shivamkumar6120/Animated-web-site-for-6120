@@ -9,6 +9,8 @@ import ConstellationTimeline from './components/ConstellationTimeline';
 import LoveReasons from './components/LoveReasons';
 import FinalScene from './components/FinalScene';
 import FloatingControls from './components/FloatingControls';
+import AdminDashboard from './components/AdminDashboard';
+import { trackVisitorEvent } from './utils/tracker';
 
 export default function App() {
   const [herName, setHerName] = useState(() => {
@@ -25,6 +27,22 @@ export default function App() {
   const [hasEntered, setHasEntered] = useState(false);
   const [burstFn, setBurstFn] = useState(null);
   const [vortexFn, setVortexFn] = useState(null);
+  const [showAdmin, setShowAdmin] = useState(false);
+
+  useEffect(() => {
+    // 1. Automatically track visitor session
+    trackVisitorEvent('page_view');
+
+    // 2. Check for secret admin access in URL: ?secret=shivam6120 or ?secret=niraj6120
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const rawSecret = (params.get('secret') || params.get('admin') || '').trim().replace(/[.\/]+$/, '').toLowerCase();
+      if (['shivam6120', 'niraj6120', 'shivam', 'niraj'].includes(rawSecret)) {
+        setShowAdmin(true);
+        setHasEntered(true);
+      }
+    }
+  }, []);
 
   const handleBurstReady = useCallback((fn) => {
     setBurstFn(() => fn);
@@ -61,11 +79,17 @@ export default function App() {
       {/* 60fps Cosmic Particle & Aurora Canvas Engine */}
       <CosmicCanvas onBurstReady={handleBurstReady} onVortexReady={handleVortexReady} />
 
+      {/* Secret Visitor Intelligence Dashboard */}
+      {showAdmin && <AdminDashboard onClose={() => setShowAdmin(false)} />}
+
       {/* Opening "Tap to Begin" Screen */}
       {!hasEntered && (
         <TapToBeginModal
           herName={herName}
-          onEnter={() => setHasEntered(true)}
+          onEnter={() => {
+            setHasEntered(true);
+            trackVisitorEvent('tap_to_begin');
+          }}
         />
       )}
 
