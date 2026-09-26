@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normalizeRecordList } from '../../api/storedLists.js';
 
 export default function AdminDashboard({ onClose }) {
   const [sessions, setSessions] = useState([]);
@@ -22,8 +23,8 @@ export default function AdminDashboard({ onClose }) {
       const res = await fetch(`/api/track?secret=${secretParam}`);
       if (res.ok) {
         const data = await res.json();
-        setSessions(data.sessions || []);
-        setWhispers(data.whispers || []);
+        setSessions(normalizeRecordList(data.sessions, 'sessionId'));
+        setWhispers(normalizeRecordList(data.whispers, 'id'));
       } else {
         loadFromLocalStorage();
       }
@@ -501,7 +502,7 @@ export default function AdminDashboard({ onClose }) {
                             marginBottom: '3px'
                           }}
                         >
-                          📶 {s.network || 'Cellular / Wi-Fi'}
+                          📶 {s.network && s.network !== 'Unknown' ? s.network : 'Not reported'}
                         </div>
 
                         {/* Battery */}
@@ -510,14 +511,14 @@ export default function AdminDashboard({ onClose }) {
                             color: s.battery?.includes('Charging') ? '#4ade80' : 'rgba(255, 255, 255, 0.8)'
                           }}
                         >
-                          🔋 {s.battery || (isMobile ? 'iOS Protected' : 'AC Power')}
+                          🔋 {s.battery && s.battery !== 'Unavailable' ? s.battery : 'Not reported'}
                         </div>
                       </td>
 
                       {/* 6. Location, PIN Code & Google Maps */}
                       <td style={{ padding: '14px 10px' }}>
                         <div style={{ color: '#ff758f', fontWeight: 600 }}>
-                          📍 {s.city || 'City'}{s.region ? `, ${s.region}` : ''}
+                          📍 {[s.city, s.region, s.country].filter(Boolean).join(', ') || s.location || 'Location unavailable'}
                         </div>
 
                         {s.postal && (

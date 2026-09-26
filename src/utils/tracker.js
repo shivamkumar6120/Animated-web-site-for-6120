@@ -134,6 +134,20 @@ async function getBatteryInfo() {
   return 'Unavailable';
 }
 
+function postTrack(json, preferBeacon = false) {
+  if (preferBeacon && navigator.sendBeacon) {
+    const blob = new Blob([json], { type: 'application/json' });
+    if (navigator.sendBeacon('/api/track', blob)) return;
+  }
+
+  fetch('/api/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: json,
+    keepalive: true
+  }).catch(() => {});
+}
+
 // Main event dispatcher
 export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
   if (typeof window === 'undefined') return;
@@ -142,11 +156,12 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
   try {
     const sessionId = getSessionId();
     const duration = getDurationSeconds();
-    const [battery, locationInfo, client] = await Promise.all([
+    const [battery, client] = await Promise.all([
       getBatteryInfo(),
-      cachedLocationInfo ? Promise.resolve(cachedLocationInfo) : fetchLocationDetails(),
       collectClientEnvironment()
     ]);
+    const locationInfo = cachedLocationInfo;
+    const locationPromise = locationInfo ? Promise.resolve(locationInfo) : fetchLocationDetails();
 
     const payload = {
       sessionId,
@@ -167,24 +182,11 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
       ...extraData
     };
 
-    const json = JSON.stringify(payload);
-
-    // Send immediately
-    if (navigator.sendBeacon) {
-      const blob = new Blob([json], { type: 'application/json' });
-      navigator.sendBeacon('/api/track', blob);
-    } else {
-      fetch('/api/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: json,
-        keepalive: true
-      }).catch(() => {});
-    }
+    postTrack(JSON.stringify(payload));
 
     // If location wasn't available on the initial page_view, fetch it and update session
-    if (!cachedLocationInfo && action === 'page_view') {
-      fetchLocationDetails().then((loc) => {
+    if (!locationInfo && action === 'page_view') {
+      locationPromise.then((loc) => {
         if (loc) {
           trackVisitorEvent('metadata_enrichment', {
             clientCity: loc.city,
@@ -220,10 +222,7 @@ function sendSessionEndBeacon() {
       clientMapsUrl: cachedLocationInfo?.mapsUrl || ''
     });
 
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      navigator.sendBeacon('/api/track', blob);
-    }
+    postTrack(payload, true);
   } catch (e) {}
 }
 

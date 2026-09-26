@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node api/clientEnvironment.test.mjs"
+    "test": "node api/clientEnvironment.test.mjs && node api/storedLists.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

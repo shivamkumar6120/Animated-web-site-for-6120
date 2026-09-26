@@ -9,6 +9,7 @@
  */
 
 import { CLIENT_HINT_HEADERS, resolveClientEnvironment } from './clientEnvironment.js';
+import { normalizeRecordList } from './storedLists.js';
 
 const CLOUD_STORE_URL = 'https://kvdb.io/K9m8Wj6T2xAnimatedNishi/';
 
@@ -27,53 +28,61 @@ function getRedisCredentials() {
   return { url, token };
 }
 
-// Helper: Fetch data from Cloud Storage
-async function getCloudData(key) {
-  // 1. Try Upstash / Vercel KV with any prefix (STORAGE, UPSTASH, KV)
+function parseStoredValue(result) {
+  if (result == null || result === '') return null;
+  if (typeof result !== 'string') return result;
+  try {
+    return JSON.parse(result);
+  } catch {
+    return result;
+  }
+}
+
+function isCleanRecordList(value) {
+  return Array.isArray(value) && value.every((item) => item && typeof item === 'object' && !Array.isArray(item));
+}
+
+async function readCloudValue(key) {
   const { url, token } = getRedisCredentials();
 
   if (url && token) {
     try {
-      const res = await fetch(`${url}/get/${key}`, {
+      const endpoint = `${url.replace(/\/$/, '')}/get/${encodeURIComponent(key)}`;
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        return data.result ? JSON.parse(data.result) : null;
+        if (data.result == null) return null;
+        return parseStoredValue(data.result);
       }
     } catch (e) {}
   }
 
-  // 2. Default Free Cloud KV fallback (Zero config needed)
   try {
     const res = await fetch(`${CLOUD_STORE_URL}${key}`);
-    if (res.ok) {
-      return await res.json();
-    }
+    if (res.ok) return await res.json();
   } catch (e) {}
 
   return null;
 }
 
-// Helper: Save data to Cloud Storage
 async function saveCloudData(key, value) {
   const jsonStr = JSON.stringify(value);
-
-  // 1. Try Upstash / Vercel KV with any prefix (STORAGE, UPSTASH, KV)
   const { url, token } = getRedisCredentials();
 
   if (url && token) {
     try {
-      await fetch(`${url}/set/${key}`, {
+      const endpoint = url.replace(/\/$/, '');
+      const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify([jsonStr])
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(['SET', key, jsonStr])
       });
-      return;
+      if (res.ok) return;
     } catch (e) {}
   }
 
-  // 2. Default Free Cloud KV fallback
   try {
     await fetch(`${CLOUD_STORE_URL}${key}`, {
       method: 'POST',
@@ -81,6 +90,51 @@ async function saveCloudData(key, value) {
       body: jsonStr
     });
   } catch (e) {}
+}
+
+async function loadRecordList(key, idKey) {
+  const raw = await readCloudValue(key);
+  const records = normalizeRecordList(raw, idKey);
+  if (raw != null && !isCleanRecordList(raw)) {
+    await saveCloudData(key, records);
+  }
+  return records;
+}
+
+function readJsonBody(req) {
+  let body = req.body;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(body)) {
+    body = body.toString('utf8');
+  }
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return {};
+    }
+  }
+  if (body && typeof body === 'object' && !Array.isArray(body)) return body;
+  return {};
+}
+
+function headerText(headers, name) {
+  const value = headers?.[name] || headers?.[name.toLowerCase()] || '';
+  if (typeof value !== 'string' || !value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function countryName(code) {
+  if (!code) return '';
+  if (code.length !== 2) return code;
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code.toUpperCase()) || code;
+  } catch {
+    return code;
+  }
 }
 
 function environmentDetailScore(environment = {}) {
@@ -157,8 +211,8 @@ export default async function handler(req, res) {
     }
 
     // Retrieve from Cloud Storage
-    const cloudSessions = (await getCloudData('universe_sessions')) || [];
-    const cloudWhispers = (await getCloudData('universe_whispers')) || [];
+    const cloudSessions = await loadRecordList('universe_sessions', 'sessionId');
+    const cloudWhispers = await loadRecordList('universe_whispers', 'id');
 
     return res.status(200).json({
       success: true,
@@ -171,7 +225,7 @@ export default async function handler(req, res) {
   // 2. POST: Process tracking events, whispers, and log clearing
   if (req.method === 'POST') {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const body = readJsonBody(req);
 
       // Admin Action: Clear test logs
       if (body.action === 'clear_test_logs') {
@@ -190,13 +244,12 @@ export default async function handler(req, res) {
         client: body.client
       });
 
-      // Location resolution (client lookup details + Vercel edge headers fallback)
-      const country = body.clientCountry || req.headers['x-vercel-ip-country'] || 'India';
-      const city = body.clientCity || (req.headers['x-vercel-ip-city'] ? decodeURIComponent(req.headers['x-vercel-ip-city']) : '');
-      const region = body.clientRegion || req.headers['x-vercel-ip-country-region'] || '';
-      const postal = body.clientPostal || '';
-      const latitude = body.clientLat || null;
-      const longitude = body.clientLon || null;
+      const country = countryName(body.clientCountry || headerText(req.headers, 'x-vercel-ip-country'));
+      const city = body.clientCity || headerText(req.headers, 'x-vercel-ip-city');
+      const region = body.clientRegion || headerText(req.headers, 'x-vercel-ip-country-region');
+      const postal = body.clientPostal || headerText(req.headers, 'x-vercel-ip-postal-code');
+      const latitude = body.clientLat || headerText(req.headers, 'x-vercel-ip-latitude') || null;
+      const longitude = body.clientLon || headerText(req.headers, 'x-vercel-ip-longitude') || null;
       const mapsUrl = body.clientMapsUrl || (latitude && longitude ? `https://www.google.com/maps?q=${latitude},${longitude}` : '');
       const isp = body.clientIsp || 'Telecom / Wi-Fi';
 
@@ -227,7 +280,7 @@ export default async function handler(req, res) {
           mapsUrl: mapsUrl || body.clientMapsUrl
         };
 
-        const existingWhispers = (await getCloudData('universe_whispers')) || [];
+        const existingWhispers = await loadRecordList('universe_whispers', 'id');
         existingWhispers.unshift(whisperEntry);
         await saveCloudData('universe_whispers', existingWhispers.slice(0, 50));
 
@@ -264,7 +317,7 @@ export default async function handler(req, res) {
       // Handle Distinct Session Management in Cloud Storage
       const sessionId = body.sessionId || 'session_' + Date.now();
       const durationSeconds = body.durationSeconds || 1;
-      let existingSessions = (await getCloudData('universe_sessions')) || [];
+      let existingSessions = await loadRecordList('universe_sessions', 'sessionId');
 
       const sessionIndex = existingSessions.findIndex((s) => s.sessionId === sessionId);
 
