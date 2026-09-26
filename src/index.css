@@ -1,0 +1,268 @@
+:root {
+  --bg-deep: #06020c;
+  --bg-surface: #0e0517;
+  --accent-pink: #ff2d75;
+  --accent-rose: #ff5388;
+  --accent-coral: #ff758f;
+  --accent-purple: #9d4edd;
+  --accent-lavender: #e0aaff;
+  --accent-gold: #ffe49e;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 220, 235, 0.85);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  width: 100%;
+}
+
+/* Safe Area Inset Support for iPhone Notch / Dynamic Island */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Custom Sleek Glowing Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #06020c;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff2d75, #9d4edd);
+  border-radius: 9999px;
+  box-shadow: 0 0 10px rgba(255, 45, 117, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff5388;
+}
+
+/* Dynamic Viewport Unit Helpers */
+.full-screen-height {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Responsive Utilities */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 500px) {
+  .sm-hidden {
+    display: none !important;
+  }
+}
+
+/* MOBILE CONSTELLATION TIMELINE */
+@media (max-width: 767px) {
+  .timeline-container {
+    padding-left: 10px !important;
+  }
+  .timeline-spine {
+    left: 24px !important;
+    transform: none !important;
+  }
+  .timeline-item-wrapper {
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    padding-left: 56px !important;
+  }
+  .timeline-node {
+    position: absolute !important;
+    left: 2px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .timeline-card {
+    text-align: left !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 20px 18px !important;
+  }
+  .timeline-header {
+    justify-content: flex-start !important;
+  }
+}
+
+/* KEYFRAME ANIMATIONS */
+
+/* Natural Double-pulse Heartbeat */
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.14);
+  }
+  28% {
+    transform: scale(1.04);
+  }
+  42% {
+    transform: scale(1.18);
+  }
+  70% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Rapid Excited Heartbeat on Hover / Touch */
+@keyframes heartbeatRapid {
+  0% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.22);
+  }
+  30% {
+    transform: scale(1.08);
+  }
+  45% {
+    transform: scale(1.26);
+  }
+  65% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Soft Breathing Glow */
+@keyframes pulseGlow {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+}
+
+/* Celestial Orbit Rotations */
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spinSlowReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* Anti-gravity Floating */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+}
+
+/* Dramatic Chromatic Breathing for Nishi */
+@keyframes letterGlowBreath {
+  0% {
+    filter: drop-shadow(0 0 12px rgba(255, 45, 117, 0.6)) drop-shadow(0 0 28px rgba(157, 78, 221, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 28px rgba(255, 117, 143, 0.95)) drop-shadow(0 0 55px rgba(255, 45, 117, 0.8));
+  }
+  100% {
+    filter: drop-shadow(0 0 12px rgba(255, 45, 117, 0.6)) drop-shadow(0 0 28px rgba(157, 78, 221, 0.4));
+  }
+}
+
+/* Equalizer Bars Animation */
+@keyframes equalizer {
+  0%, 100% {
+    height: 3px;
+  }
+  50% {
+    height: 14px;
+  }
+}
+
+/* Scroll Mouse Wheel Cue */
+@keyframes scrollWheel {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(12px);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+
+/* Fade In */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Intersection Reveal for Message Cards */
+.romantic-message-card.visible {
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+}
+
+/* Reduced Motion Mode */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
