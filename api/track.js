@@ -10,16 +10,30 @@
 
 const CLOUD_STORE_URL = 'https://kvdb.io/K9m8Wj6T2xAnimatedNishi/';
 
+function getRedisCredentials() {
+  const url = process.env.STORAGE_REST_API_URL 
+    || process.env.UPSTASH_REDIS_REST_URL 
+    || process.env.KV_REST_API_URL 
+    || process.env.STORAGE_URL 
+    || process.env.UPSTASH_REDIS_URL;
+
+  const token = process.env.STORAGE_REST_API_TOKEN 
+    || process.env.UPSTASH_REDIS_REST_TOKEN 
+    || process.env.KV_REST_API_TOKEN 
+    || process.env.STORAGE_TOKEN;
+
+  return { url, token };
+}
+
 // Helper: Fetch data from Cloud Storage
 async function getCloudData(key) {
-  // 1. Try Upstash / Vercel KV if available
-  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  // 1. Try Upstash / Vercel KV with any prefix (STORAGE, UPSTASH, KV)
+  const { url, token } = getRedisCredentials();
 
-  if (upstashUrl && upstashToken) {
+  if (url && token) {
     try {
-      const res = await fetch(`${upstashUrl}/get/${key}`, {
-        headers: { Authorization: `Bearer ${upstashToken}` }
+      const res = await fetch(`${url}/get/${key}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -43,15 +57,14 @@ async function getCloudData(key) {
 async function saveCloudData(key, value) {
   const jsonStr = JSON.stringify(value);
 
-  // 1. Try Upstash / Vercel KV if available
-  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  // 1. Try Upstash / Vercel KV with any prefix (STORAGE, UPSTASH, KV)
+  const { url, token } = getRedisCredentials();
 
-  if (upstashUrl && upstashToken) {
+  if (url && token) {
     try {
-      await fetch(`${upstashUrl}/set/${key}`, {
+      await fetch(`${url}/set/${key}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${upstashToken}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify([jsonStr])
       });
       return;
