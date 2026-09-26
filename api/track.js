@@ -214,6 +214,25 @@ function applyEnvironment(session, environment, isp) {
   session.environment = environment;
 }
 
+function phoneKeyFromEnvironment(environment = {}) {
+  const parts = [
+    environment.deviceLabel,
+    environment.deviceModel,
+    environment.screen,
+    environment.browserName,
+    environment.osLabel,
+    environment.language
+  ].map((value) => String(value || '').toLowerCase().trim()).filter(Boolean);
+
+  if (parts.length < 3) return '';
+  let hash = 5381;
+  const raw = parts.join('|');
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = ((hash << 5) + hash) + raw.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function formatDuration(seconds = 0) {
   if (!seconds || seconds <= 0) return '1s';
   if (seconds < 60) return `${seconds}s`;
@@ -312,12 +331,16 @@ export default async function handler(req, res) {
 
       // Handle Whisper Messages from Nishi
       if (body.action === 'whisper_message') {
+        const whisperSessionId = typeof body.sessionId === 'string' ? body.sessionId.trim().slice(0, 80) : '';
+        const whisperVisitorId = typeof body.visitorId === 'string' ? body.visitorId.trim().slice(0, 64) : '';
         const whisperEntry = {
           id: Date.now() + Math.random().toString(36).substring(2, 6),
-          text: body.message,
+          text: String(body.message || '').trim().slice(0, 500),
           time: localTimeString,
           date: localDateString,
           timestamp: now.toISOString(),
+          sessionId: whisperSessionId,
+          visitorId: whisperVisitorId,
           device: `${environment.deviceLabel} (${environment.osLabel})`,
           location: locationString,
           mapsUrl: mapsUrl || body.clientMapsUrl
@@ -326,6 +349,20 @@ export default async function handler(req, res) {
         const existingWhispers = await loadRecordList('universe_whispers', 'id');
         existingWhispers.unshift(whisperEntry);
         await saveCloudData('universe_whispers', existingWhispers.slice(0, 50));
+
+        if (whisperSessionId) {
+          const whisperSessions = await loadRecordList('universe_sessions', 'sessionId');
+          const whisperIndex = whisperSessions.findIndex((session) => session.sessionId === whisperSessionId);
+          if (whisperIndex >= 0) {
+            const whisperSession = whisperSessions[whisperIndex];
+            whisperSession.note = whisperEntry.text;
+            whisperSession.actions = Array.isArray(whisperSession.actions) ? whisperSession.actions : [];
+            if (!whisperSession.actions.includes('whisper_message')) whisperSession.actions.push('whisper_message');
+            if (whisperVisitorId && !whisperSession.visitorId) whisperSession.visitorId = whisperVisitorId;
+            whisperSessions[whisperIndex] = whisperSession;
+            await saveCloudData('universe_sessions', whisperSessions.slice(0, 80));
+          }
+        }
 
         // Discord webhook alert if configured
         const discordWebhook = process.env.DISCORD_WEBHOOK_URL;
@@ -396,6 +433,8 @@ export default async function handler(req, res) {
           actions: [body.action || 'page_view']
         };
         applyEnvironment(newSession, environment, isp);
+        const nextPhoneKey = phoneKeyFromEnvironment(environment);
+        if (nextPhoneKey) newSession.phoneKey = nextPhoneKey;
         const isMobileDevice = newSession.isMobile;
 
         existingSessions.unshift(newSession);
@@ -457,6 +496,8 @@ export default async function handler(req, res) {
         const storedScore = environmentDetailScore(sess.environment);
         if (body.client && incomingScore >= storedScore) {
           applyEnvironment(sess, environment, isp || sess.isp);
+          const nextPhoneKey = phoneKeyFromEnvironment(environment);
+          if (nextPhoneKey) sess.phoneKey = nextPhoneKey;
         }
 
         const canReplaceLocation = preciseLocation || (sess.locationSource !== 'gps' && (!sess.city || sess.city === 'Unknown City'));

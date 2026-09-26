@@ -200,7 +200,7 @@ export default function AdminDashboard({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '1.2rem' }}>🌸</span>
           <span>
-            <strong>Who opened it:</strong> Send a personal link such as <strong>?name=Nishi</strong>. That name is stored with the visit. The same phone also keeps one visitor code across later visits, so you can tell her browser from someone else's. A site cannot read a person's email.
+            <strong>Who opened it:</strong> She only opens the normal link. This phone is remembered by itself. A different phone shows up as a different person. The browser cannot see her email or real name, and a login would stop her before the page starts.
           </span>
         </div>
         <div style={{ fontSize: '0.74rem', color: '#ffd166', background: 'rgba(255, 209, 102, 0.12)', padding: '4px 10px', borderRadius: '6px' }}>
@@ -376,6 +376,20 @@ export default function AdminDashboard({ onClose }) {
                   const appleDevice = /iPhone|iPad|iOS|iPadOS|Apple/i.test(`${s.device || ''} ${s.os || ''} ${s.deviceVendor || ''}`);
                   const sameBrowserVisits = s.visitorId ? sessions.filter((row) => row.visitorId === s.visitorId).length : 1;
                   const visitorCode = s.visitorId ? s.visitorId.slice(-4).toUpperCase() : '';
+                  const matchingPhones = s.phoneKey ? sessions.filter((row) => row.phoneKey === s.phoneKey) : [];
+                  const phoneVisitorIds = new Set(matchingPhones.map((row) => row.visitorId).filter(Boolean));
+                  const likelySamePhone = Boolean(s.phoneKey) && (phoneVisitorIds.size > 1 || (!s.visitorId && matchingPhones.length > 1));
+                  const actionLabels = {
+                    page_view: 'Opened',
+                    tap_to_begin: 'Entered',
+                    heart_tapped: 'Heart',
+                    love_shower_sent: 'Love shower',
+                    whisper_message: 'Wrote a note'
+                  };
+                  const sessionNotes = [
+                    s.note,
+                    ...whispers.filter((whisper) => whisper.sessionId && whisper.sessionId === s.sessionId).map((whisper) => whisper.text)
+                  ].filter(Boolean);
 
                   const mapsLink = s.mapsUrl || (s.latitude && s.longitude ? `https://www.google.com/maps?q=${s.latitude},${s.longitude}` : (s.city ? `https://www.google.com/maps?q=${encodeURIComponent((s.city || '') + ' ' + (s.postal || '') + ' India')}` : null));
 
@@ -401,11 +415,17 @@ export default function AdminDashboard({ onClose }) {
                               fontWeight: 700
                             }}
                           >
-                            {s.inviteName ? `🌸 ${s.inviteName}` : `Visitor ${visitorCode || 'unknown'}`}
+                            {s.inviteName ? `🌸 ${s.inviteName}` : `This phone${visitorCode ? ` · ${visitorCode}` : ''}`}
                           </span>
                           <span style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                            {sameBrowserVisits > 1 ? `Same browser · ${sameBrowserVisits} visits` : 'First visit from this browser'}
+                            {sameBrowserVisits > 1 ? `Came back · ${sameBrowserVisits} visits` : 'First time on this phone'}
+                            {likelySamePhone ? ' · same phone as an earlier visit' : ''}
                           </span>
+                          {sessionNotes[0] && (
+                            <span style={{ fontSize: '0.72rem', color: '#ffd166', maxWidth: '220px', whiteSpace: 'normal' }}>
+                              “{sessionNotes[0]}”
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -551,23 +571,23 @@ export default function AdminDashboard({ onClose }) {
                       {/* 7. Milestones Reached */}
                       <td style={{ padding: '14px 10px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                          {(s.actions || ['page_view']).map((act, i) => (
+                          {(s.actions || ['page_view']).filter((act) => actionLabels[act]).map((act) => (
                             <span
-                              key={i}
+                              key={act}
                               style={{
                                 padding: '2px 8px',
                                 borderRadius: '9999px',
                                 fontSize: '0.7rem',
                                 background: act === 'love_shower_sent'
                                   ? 'rgba(255, 45, 117, 0.35)'
-                                  : act === 'whisper_message'
+                                  : act === 'whisper_message' || act === 'heart_tapped'
                                   ? 'rgba(255, 209, 102, 0.3)'
                                   : 'rgba(255, 255, 255, 0.1)',
                                 border: '1px solid rgba(255, 255, 255, 0.2)',
                                 color: '#ffffff'
                               }}
                             >
-                              {act}
+                              {actionLabels[act]}
                             </span>
                           ))}
                         </div>

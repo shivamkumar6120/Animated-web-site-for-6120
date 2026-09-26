@@ -359,6 +359,7 @@ export async function sendWhisperMessage(messageText) {
     action: 'whisper_message',
     message: messageText.trim(),
     sessionId,
+    visitorId: getVisitorId(),
     timestamp: new Date().toISOString(),
     localTime: new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
     clientCity: locationInfo?.city,
