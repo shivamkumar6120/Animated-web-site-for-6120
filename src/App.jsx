@@ -30,18 +30,21 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
-    // 1. Automatically track visitor session
-    trackVisitorEvent('page_view');
-
-    // 2. Check for secret admin access in URL: ?secret=shivam6120 or ?secret=niraj6120
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const rawSecret = (params.get('secret') || params.get('admin') || '').trim().replace(/[.\/]+$/, '').toLowerCase();
-      if (['shivam6120', 'niraj6120', 'shivam', 'niraj'].includes(rawSecret)) {
+      const rawSecret = (params.get('secret') || params.get('admin') || '').trim().replace(/[./]+$/, '').toLowerCase();
+      const isAdminAccess = ['shivam6120', 'niraj6120', 'shivam', 'niraj'].includes(rawSecret);
+
+      if (isAdminAccess) {
+        sessionStorage.setItem('nishi_is_admin', 'true');
         setShowAdmin(true);
         setHasEntered(true);
+        return; // Do NOT track admin's own dashboard visits!
       }
     }
+
+    // Automatically track visitor session for Nishi or visitors
+    trackVisitorEvent('page_view');
   }, []);
 
   const handleBurstReady = useCallback((fn) => {

