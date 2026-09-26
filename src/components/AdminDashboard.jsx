@@ -365,7 +365,11 @@ export default function AdminDashboard({ onClose }) {
                 {sessions.map((s, index) => {
                   const nowMs = Date.now();
                   const lastActiveMs = s.lastActiveTimestamp ? new Date(s.lastActiveTimestamp).getTime() : 0;
-                  const isStillActive = s.status !== 'completed' && lastActiveMs > 0 && (nowMs - lastActiveMs) < 45000;
+                  const recentlySeen = lastActiveMs > 0 && (nowMs - lastActiveMs) < 45000;
+                  const isStillActive = recentlySeen && s.status !== 'completed' && s.status !== 'away';
+                  const placeLabel = [s.locality, s.city, s.region, s.country]
+                    .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                    .join(', ');
                   const isMobile = s.deviceType
                     ? s.deviceType !== 'desktop'
                     : /iPhone|Android|iPad|Phone|Tablet/i.test(`${s.device || ''} ${s.os || ''}`);
@@ -455,10 +459,10 @@ export default function AdminDashboard({ onClose }) {
                                 fontWeight: 600
                               }}
                             >
-                              ⏱️ {s.durationFormatted || (s.durationSeconds ? `${s.durationSeconds}s` : 'Completed')}
+                              ⏱️ {s.durationFormatted || (s.durationSeconds ? `${s.durationSeconds}s` : 'Away')}
                             </span>
                             <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '4px' }}>
-                              Left at {s.endedAt || s.lastActiveTime}
+                              {s.status === 'completed' ? 'Closed' : 'Last seen'} at {s.endedAt || s.lastActiveTime}
                             </div>
                           </div>
                         )}
@@ -518,7 +522,7 @@ export default function AdminDashboard({ onClose }) {
                       {/* 6. Location, PIN Code & Google Maps */}
                       <td style={{ padding: '14px 10px' }}>
                         <div style={{ color: '#ff758f', fontWeight: 600 }}>
-                          📍 {[s.city, s.region, s.country].filter(Boolean).join(', ') || s.location || 'Location unavailable'}
+                          📍 {placeLabel || s.location || 'Location unavailable'}
                         </div>
 
                         {s.postal && (

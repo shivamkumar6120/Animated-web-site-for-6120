@@ -127,6 +127,38 @@ function headerText(headers, name) {
   }
 }
 
+async function reverseGeocode(latitude, longitude) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=16&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'NishiUniverse/1.0 (personal visitor log)'
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const address = data.address || {};
+    const locality = address.village || address.suburb || address.neighbourhood || address.hamlet || '';
+    const city = address.city || address.town || address.state_district || '';
+    return {
+      locality,
+      city,
+      region: address.state || '',
+      postal: address.postcode || '',
+      country: address.country || ''
+    };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function countryName(code) {
   if (!code) return '';
   if (code.length !== 2) return code;
@@ -244,24 +276,35 @@ export default async function handler(req, res) {
         client: body.client
       });
 
-      const country = countryName(body.clientCountry || headerText(req.headers, 'x-vercel-ip-country'));
-      const city = body.clientCity || headerText(req.headers, 'x-vercel-ip-city');
-      const region = body.clientRegion || headerText(req.headers, 'x-vercel-ip-country-region');
-      const postal = body.clientPostal || headerText(req.headers, 'x-vercel-ip-postal-code');
-      const latitude = body.clientLat || headerText(req.headers, 'x-vercel-ip-latitude') || null;
-      const longitude = body.clientLon || headerText(req.headers, 'x-vercel-ip-longitude') || null;
+      const preciseLocation = body.clientLocationSource === 'gps';
+      let country = countryName(body.clientCountry || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-country')));
+      let city = body.clientCity || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-city'));
+      let region = body.clientRegion || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-country-region'));
+      let postal = body.clientPostal || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-postal-code'));
+      let locality = '';
+      const latitude = body.clientLat || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-latitude')) || null;
+      const longitude = body.clientLon || (preciseLocation ? '' : headerText(req.headers, 'x-vercel-ip-longitude')) || null;
       const mapsUrl = body.clientMapsUrl || (latitude && longitude ? `https://www.google.com/maps?q=${latitude},${longitude}` : '');
       const isp = body.clientIsp || 'Telecom / Wi-Fi';
 
-      // Build readable location
-      let locationString = country;
-      if (city) {
-        let locParts = [city];
-        if (region) locParts.push(region);
-        if (postal) locParts.push(`PIN: ${postal}`);
-        locParts.push(country);
-        locationString = locParts.join(', ');
+      if (preciseLocation && latitude && longitude) {
+        const place = await reverseGeocode(latitude, longitude);
+        if (place) {
+          locality = place.locality;
+          city = place.city || locality;
+          region = place.region || region;
+          postal = place.postal || postal;
+          country = place.country || country;
+        }
       }
+
+      const locParts = [];
+      if (locality && locality !== city) locParts.push(locality);
+      if (city) locParts.push(city);
+      if (region && region !== city) locParts.push(region);
+      if (postal) locParts.push(`PIN: ${postal}`);
+      if (country && country !== city) locParts.push(country);
+      const locationString = locParts.join(', ');
 
       const now = new Date();
       const localTimeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -336,14 +379,16 @@ export default async function handler(req, res) {
           battery: body.battery || 'Unavailable',
           network: 'Unknown',
           location: locationString,
+          locality: locality,
           city: city,
           region: region,
           postal: postal,
+          locationSource: preciseLocation ? 'gps' : 'ip',
           latitude: latitude,
           longitude: longitude,
           mapsUrl: mapsUrl,
           isp: isp,
-          status: body.action === 'session_end' ? 'completed' : 'active',
+          status: body.action === 'session_pause' ? 'away' : 'active',
           actions: [body.action || 'page_view']
         };
         applyEnvironment(newSession, environment, isp);
@@ -392,6 +437,10 @@ export default async function handler(req, res) {
         if (body.action === 'session_end') {
           sess.status = 'completed';
           sess.endedAt = localTimeString;
+        } else if (body.action === 'session_pause') {
+          if (sess.status !== 'completed') sess.status = 'away';
+        } else if (body.action !== 'metadata_enrichment') {
+          sess.status = 'active';
         }
 
         if (body.battery && body.battery !== 'Unavailable') {
@@ -404,14 +453,18 @@ export default async function handler(req, res) {
           applyEnvironment(sess, environment, isp || sess.isp);
         }
 
-        if (city && (!sess.city || sess.city === 'Unknown City')) {
-          sess.city = city;
-          sess.region = region;
-          sess.postal = postal;
-          sess.latitude = latitude;
-          sess.longitude = longitude;
-          sess.mapsUrl = mapsUrl;
-          sess.location = locationString;
+        const canReplaceLocation = preciseLocation || (sess.locationSource !== 'gps' && (!sess.city || sess.city === 'Unknown City'));
+        if (canReplaceLocation && (city || locality || (latitude && longitude))) {
+          sess.locality = locality || (preciseLocation ? '' : sess.locality);
+          sess.city = city || sess.city;
+          sess.region = region || sess.region;
+          sess.postal = postal || sess.postal;
+          sess.country = country || sess.country;
+          sess.latitude = latitude || sess.latitude;
+          sess.longitude = longitude || sess.longitude;
+          sess.mapsUrl = mapsUrl || sess.mapsUrl;
+          sess.location = locationString || sess.location;
+          if (preciseLocation) sess.locationSource = 'gps';
         }
 
         if (body.clientMapsUrl && !sess.mapsUrl) {
@@ -422,7 +475,8 @@ export default async function handler(req, res) {
           sess.isp = isp;
         }
 
-        if (body.action && !sess.actions.includes(body.action) && !body.action.startsWith('duration_')) {
+        const hiddenActions = ['session_pause', 'session_resume', 'session_end', 'metadata_enrichment'];
+        if (body.action && !sess.actions.includes(body.action) && !body.action.startsWith('duration_') && !hiddenActions.includes(body.action)) {
           sess.actions.push(body.action);
         }
 

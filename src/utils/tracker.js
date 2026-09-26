@@ -22,28 +22,81 @@ export function isCurrentAdmin() {
   }
 }
 
-// Unique session management (new session after 20 minutes of inactivity)
+let activeMs = 0;
+let visibleSince = null;
+let timingReady = false;
+
+function readNavigationType() {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    return nav ? nav.type : 'navigate';
+  } catch (e) {
+    return 'navigate';
+  }
+}
+
+function ensureTiming() {
+  if (timingReady) return;
+  timingReady = true;
+  activeMs = parseInt(sessionStorage.getItem('nishi_universe_active_ms') || '0', 10) || 0;
+  if (document.visibilityState === 'visible') visibleSince = Date.now();
+}
+
+function visibleDurationMs() {
+  const running = visibleSince ? Date.now() - visibleSince : 0;
+  return activeMs + running;
+}
+
+function pauseVisibleTime() {
+  ensureTiming();
+  if (!visibleSince) return;
+  activeMs += Date.now() - visibleSince;
+  visibleSince = null;
+  sessionStorage.setItem('nishi_universe_active_ms', String(activeMs));
+}
+
+function resumeVisibleTime() {
+  ensureTiming();
+  if (document.visibilityState === 'hidden' || visibleSince) return;
+  visibleSince = Date.now();
+}
+
+// A fresh open of the link starts a new visit. Switching away keeps this one.
 function getSessionId() {
   if (typeof window === 'undefined') return 'unknown-session';
 
-  let sessionId = sessionStorage.getItem('nishi_universe_session_id');
-  const sessionLastActive = parseInt(sessionStorage.getItem('nishi_universe_last_active') || '0', 10);
   const now = Date.now();
+  let sessionId = sessionStorage.getItem('nishi_universe_session_id');
+  const pageToken = window.__nishiPageToken || (window.__nishiPageToken = String(now));
+  const markedToken = sessionStorage.getItem('nishi_universe_page_token');
 
-  if (!sessionId || (sessionLastActive && now - sessionLastActive > 20 * 60 * 1000)) {
+  if (readNavigationType() === 'navigate' && markedToken !== pageToken) {
     sessionId = 'session_' + now.toString(36) + '_' + Math.random().toString(36).substring(2, 6);
     sessionStorage.setItem('nishi_universe_session_id', sessionId);
-    sessionStorage.setItem('nishi_universe_session_start', now.toString());
+    sessionStorage.setItem('nishi_universe_page_token', pageToken);
+    sessionStorage.setItem('nishi_universe_active_ms', '0');
+    activeMs = 0;
+    visibleSince = document.visibilityState === 'visible' ? Date.now() : null;
+    timingReady = true;
+  } else if (!sessionId) {
+    sessionId = 'session_' + now.toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+    sessionStorage.setItem('nishi_universe_session_id', sessionId);
+    sessionStorage.setItem('nishi_universe_active_ms', '0');
+    activeMs = 0;
+    visibleSince = document.visibilityState === 'visible' ? Date.now() : null;
+    timingReady = true;
+  } else {
+    ensureTiming();
   }
 
-  sessionStorage.setItem('nishi_universe_last_active', now.toString());
+  sessionStorage.setItem('nishi_universe_last_active', String(now));
   return sessionId;
 }
 
-// Session duration tracking
-const sessionStartTime = Date.now();
 export function getDurationSeconds() {
-  return Math.max(1, Math.round((Date.now() - sessionStartTime) / 1000));
+  if (typeof window === 'undefined') return 1;
+  ensureTiming();
+  return Math.max(1, Math.round(visibleDurationMs() / 1000));
 }
 
 // Cached IP & Location lookup
@@ -153,6 +206,10 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
   if (typeof window === 'undefined') return;
   if (isCurrentAdmin()) return; // Never track admin visits
 
+  if (action === 'page_view' || action === 'tap_to_begin') {
+    requestDeviceLocation();
+  }
+
   try {
     const sessionId = getSessionId();
     const duration = getDurationSeconds();
@@ -179,6 +236,7 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
       clientLon: locationInfo?.longitude || null,
       clientMapsUrl: locationInfo?.mapsUrl || '',
       clientIsp: locationInfo?.isp || '',
+      clientLocationSource: locationInfo?.source || '',
       ...extraData
     };
 
@@ -187,7 +245,7 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
     // If location wasn't available on the initial page_view, fetch it and update session
     if (!locationInfo && action === 'page_view') {
       locationPromise.then((loc) => {
-        if (loc) {
+        if (loc && loc.source !== 'gps') {
           trackVisitorEvent('metadata_enrichment', {
             clientCity: loc.city,
             clientRegion: loc.region,
@@ -196,7 +254,8 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
             clientLat: loc.latitude,
             clientLon: loc.longitude,
             clientMapsUrl: loc.mapsUrl,
-            clientIsp: loc.isp
+            clientIsp: loc.isp,
+            clientLocationSource: 'ip'
           });
         }
       });
@@ -205,25 +264,62 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
   } catch (err) {}
 }
 
-// Synchronous termination beacon (runs instantly on tab close / reload)
-function sendSessionEndBeacon() {
+let deviceLocationRequested = false;
+
+function requestDeviceLocation() {
+  if (deviceLocationRequested || typeof navigator === 'undefined' || !navigator.geolocation) return;
+  deviceLocationRequested = true;
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const latitude = Math.round(pos.coords.latitude * 1e6) / 1e6;
+      const longitude = Math.round(pos.coords.longitude * 1e6) / 1e6;
+      const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+      cachedLocationInfo = {
+        ...(cachedLocationInfo || {}),
+        latitude,
+        longitude,
+        mapsUrl,
+        source: 'gps'
+      };
+      trackVisitorEvent('metadata_enrichment', {
+        clientLat: latitude,
+        clientLon: longitude,
+        clientMapsUrl: mapsUrl,
+        clientLocationSource: 'gps',
+        clientCity: '',
+        clientRegion: '',
+        clientCountry: '',
+        clientPostal: ''
+      });
+    },
+    () => {},
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
+  );
+}
+
+function sendSessionPauseBeacon() {
   if (typeof window === 'undefined') return;
   if (isCurrentAdmin()) return;
 
   try {
+    pauseVisibleTime();
     const sessionId = sessionStorage.getItem('nishi_universe_session_id');
     if (!sessionId) return;
 
-    const duration = getDurationSeconds();
-    const payload = JSON.stringify({
+    postTrack(JSON.stringify({
       sessionId,
-      action: 'session_end',
-      durationSeconds: duration,
+      action: 'session_pause',
+      durationSeconds: getDurationSeconds(),
       clientMapsUrl: cachedLocationInfo?.mapsUrl || ''
-    });
-
-    postTrack(payload, true);
+    }), true);
   } catch (e) {}
+}
+
+function resumeSession() {
+  if (document.visibilityState === 'hidden') return;
+  resumeVisibleTime();
+  trackVisitorEvent('session_resume');
 }
 
 // Function to send a romantic whisper/message from Nishi
@@ -266,17 +362,24 @@ if (typeof window !== 'undefined') {
     }
   }, 10000);
 
-  // Instant duration sync on tab switch
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      sendSessionEndBeacon();
+      sendSessionPauseBeacon();
     } else {
-      trackVisitorEvent('session_resume');
+      resumeSession();
     }
   });
 
-  // Instant duration sync on page close
-  window.addEventListener('pagehide', sendSessionEndBeacon);
-  window.addEventListener('beforeunload', sendSessionEndBeacon);
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) {
+      pauseVisibleTime();
+      return;
+    }
+    sendSessionPauseBeacon();
+  });
+
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) resumeSession();
+  });
 }
 
