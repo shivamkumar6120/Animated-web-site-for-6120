@@ -52,11 +52,6 @@ export default function App() {
     [vortexFn]
   );
 
-  const handleUpdateName = (newName) => {
-    setHerName(newName);
-    document.title = `${newName}'s Romantic Universe ✨`;
-  };
-
   useEffect(() => {
     document.title = `${herName}'s Romantic Universe ✨`;
   }, [herName]);
@@ -77,8 +72,8 @@ export default function App() {
       {/* Main Cinematic Universe */}
       {hasEntered && (
         <>
-          {/* Floating Music & Customizer Hub */}
-          <FloatingControls herName={herName} onUpdateName={handleUpdateName} />
+          {/* Floating Audio Control */}
+          <FloatingControls />
 
           <main style={{ position: 'relative', zIndex: 10, width: '100%' }}>
             {/* 1. Dramatic Particle Name Reveal & Hero Entrance */}
