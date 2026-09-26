@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { CONFIG } from '../config';
 import { celestialAudio } from '../utils/audioSynth';
 
-export default function FinalScene({ herName, triggerBurst }) {
+export default function FinalScene({ herName, triggerBurst, triggerVortex }) {
   const [loveShowerActive, setLoveShowerActive] = useState(false);
   const [showerCount, setShowerCount] = useState(0);
 
@@ -15,21 +15,26 @@ export default function FinalScene({ herName, triggerBurst }) {
     celestialAudio.playBurstChime();
     celestialAudio.playHeartbeat();
 
-    // Trigger sequential bursts across the screen
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight * 0.45;
+
+    // 1. Trigger the cosmic particle vortex
+    if (triggerVortex) {
+      triggerVortex(centerX, centerY);
+    }
+
+    // 2. Trigger grand sequential particle fireworks
     if (triggerBurst) {
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight * 0.45;
-
-      triggerBurst(centerX, centerY, 70, true);
-
-      setTimeout(() => triggerBurst(centerX - 100, centerY + 60, 45, false), 180);
-      setTimeout(() => triggerBurst(centerX + 100, centerY + 60, 45, false), 360);
-      setTimeout(() => triggerBurst(centerX, centerY - 80, 55, true), 550);
+      triggerBurst(centerX, centerY, 80, true);
+      setTimeout(() => triggerBurst(centerX - 120, centerY + 50, 50, false), 200);
+      setTimeout(() => triggerBurst(centerX + 120, centerY + 50, 50, false), 400);
+      setTimeout(() => triggerBurst(centerX, centerY - 90, 65, true), 650);
+      setTimeout(() => triggerBurst(centerX, centerY, 90, true), 950);
     }
 
     setTimeout(() => {
       setLoveShowerActive(false);
-    }, 2500);
+    }, 2800);
   };
 
   return (
@@ -102,7 +107,8 @@ export default function FinalScene({ herName, triggerBurst }) {
             width: 'clamp(70px, 18vw, 120px)',
             height: 'clamp(70px, 18vw, 120px)',
             filter: 'drop-shadow(0 0 30px rgba(255, 45, 117, 0.9)) drop-shadow(0 0 60px rgba(157, 78, 221, 0.6))',
-            animation: 'heartbeat 1.6s ease-in-out infinite'
+            animation: loveShowerActive ? 'heartbeatRapid 0.7s infinite' : 'heartbeat 1.6s ease-in-out infinite',
+            transition: 'all 0.3s ease'
           }}
         >
           <defs>
@@ -142,7 +148,7 @@ export default function FinalScene({ herName, triggerBurst }) {
         </span>
       </div>
 
-      {/* Prominent Majestic HER_NAME (Nishi) */}
+      {/* Prominent Majestic Name */}
       <h2
         style={{
           fontFamily: "'Cinzel', 'Cormorant Garamond', serif",
@@ -165,7 +171,7 @@ export default function FinalScene({ herName, triggerBurst }) {
         {herName}
       </h2>
 
-      {/* Deep Romantic Core Statement */}
+      {/* Romantic Core Statement */}
       <div
         style={{
           maxWidth: '680px',
@@ -231,7 +237,9 @@ export default function FinalScene({ herName, triggerBurst }) {
           gap: '10px',
           outline: 'none',
           marginBottom: '40px',
-          touchAction: 'manipulation'
+          touchAction: 'manipulation',
+          transform: loveShowerActive ? 'scale(1.05)' : 'scale(1)',
+          transition: 'all 0.3s ease'
         }}
       >
         <span>Send Her My Endless Love</span>

@@ -12,7 +12,6 @@ import FloatingControls from './components/FloatingControls';
 
 export default function App() {
   const [herName, setHerName] = useState(() => {
-    // Check URL parameters for custom name: ?name=HerName
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const nameParam = params.get('name');
@@ -25,13 +24,16 @@ export default function App() {
 
   const [hasEntered, setHasEntered] = useState(false);
   const [burstFn, setBurstFn] = useState(null);
+  const [vortexFn, setVortexFn] = useState(null);
 
-  // Register the cosmic burst callback
   const handleBurstReady = useCallback((fn) => {
     setBurstFn(() => fn);
   }, []);
 
-  // Central trigger function passed down to child components
+  const handleVortexReady = useCallback((fn) => {
+    setVortexFn(() => fn);
+  }, []);
+
   const triggerBurst = useCallback(
     (x, y, count, isGrand) => {
       if (burstFn) {
@@ -41,9 +43,17 @@ export default function App() {
     [burstFn]
   );
 
+  const triggerVortex = useCallback(
+    (x, y) => {
+      if (vortexFn) {
+        vortexFn(x, y);
+      }
+    },
+    [vortexFn]
+  );
+
   const handleUpdateName = (newName) => {
     setHerName(newName);
-    // Update document title dynamically
     document.title = `${newName}'s Romantic Universe ✨`;
   };
 
@@ -53,8 +63,8 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '100vh', backgroundColor: '#06020c' }}>
-      {/* 60fps Cosmic Particle & Canvas Engine */}
-      <CosmicCanvas onBurstReady={handleBurstReady} />
+      {/* 60fps Cosmic Particle & Aurora Canvas Engine */}
+      <CosmicCanvas onBurstReady={handleBurstReady} onVortexReady={handleVortexReady} />
 
       {/* Opening "Tap to Begin" Screen */}
       {!hasEntered && (
@@ -71,7 +81,7 @@ export default function App() {
           <FloatingControls herName={herName} onUpdateName={handleUpdateName} />
 
           <main style={{ position: 'relative', zIndex: 10, width: '100%' }}>
-            {/* 1. Dramatic Name Reveal & Hero Entrance */}
+            {/* 1. Dramatic Particle Name Reveal & Hero Entrance */}
             <HeroSection herName={herName} triggerBurst={triggerBurst} />
 
             {/* 2. Interactive Core Pulsing Heart */}
@@ -80,14 +90,14 @@ export default function App() {
             {/* 3. Cinematic Romantic Messages */}
             <RomanticMessages triggerBurst={triggerBurst} />
 
-            {/* 4. Constellation Memory Timeline (Without Photos) */}
+            {/* 4. Heart-Shaped Constellation & Memory Timeline */}
             <ConstellationTimeline triggerBurst={triggerBurst} />
 
             {/* 5. Reasons Why She Is My Universe */}
             <LoveReasons herName={herName} triggerBurst={triggerBurst} />
 
-            {/* 6. Grand Climax Finale */}
-            <FinalScene herName={herName} triggerBurst={triggerBurst} />
+            {/* 6. Grand Climax Finale with Cosmic Vortex */}
+            <FinalScene herName={herName} triggerBurst={triggerBurst} triggerVortex={triggerVortex} />
           </main>
         </>
       )}

@@ -5,8 +5,22 @@ import { celestialAudio } from '../utils/audioSynth';
 export default function ConstellationTimeline({ triggerBurst }) {
   const [activeMilestone, setActiveMilestone] = useState(0);
 
+  // Heart-shaped constellation star coordinates
+  // Beautiful parametric heart geometry
+  const constellationStars = [
+    { id: 0, x: 160, y: 75, label: 'The Spark', icon: '✨' },
+    { id: 1, x: 235, y: 55, label: 'Whispers', icon: '🌙' },
+    { id: 2, x: 285, y: 110, label: 'Warmth', icon: '💫' },
+    { id: 3, x: 250, y: 180, label: 'Sanctuary', icon: '🌌' },
+    { id: 4, x: 160, y: 245, label: 'Forever', icon: '💖' },
+    { id: 5, x: 70, y: 180, label: 'Devotion', icon: '⭐' },
+    { id: 6, x: 35, y: 110, label: 'Kindred', icon: '✨' },
+    { id: 7, x: 85, y: 55, label: 'Orbit', icon: '💫' }
+  ];
+
   const handleMilestoneClick = (index, e) => {
-    setActiveMilestone(index);
+    const validIndex = index % CONFIG.milestones.length;
+    setActiveMilestone(validIndex);
     celestialAudio.playBurstChime();
     
     if (triggerBurst && e) {
@@ -21,7 +35,7 @@ export default function ConstellationTimeline({ triggerBurst }) {
       style={{
         position: 'relative',
         minHeight: '100vh',
-        padding: '80px 16px',
+        padding: '70px 16px 80px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -32,20 +46,20 @@ export default function ConstellationTimeline({ triggerBurst }) {
       <div
         style={{
           position: 'absolute',
-          top: '30%',
+          top: '25%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 'clamp(280px, 80vw, 600px)',
           height: 'clamp(280px, 80vw, 600px)',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(157, 78, 221, 0.12) 0%, rgba(255, 45, 117, 0.08) 50%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(157, 78, 221, 0.14) 0%, rgba(255, 45, 117, 0.08) 50%, transparent 70%)',
           filter: 'blur(60px)',
           pointerEvents: 'none'
         }}
       />
 
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '50px', padding: '0 10px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px', padding: '0 10px' }}>
         <span
           style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -71,7 +85,7 @@ export default function ConstellationTimeline({ triggerBurst }) {
             textShadow: '0 0 30px rgba(157, 78, 221, 0.4)'
           }}
         >
-          Constellation of Moments
+          Heart-Shaped Constellation
         </h2>
         <p
           style={{
@@ -83,11 +97,107 @@ export default function ConstellationTimeline({ triggerBurst }) {
             margin: '10px auto 0'
           }}
         >
-          "We do not need photographs when every memory is etched into the starlight."
+          "We do not need photographs when every memory is etched into our celestial chart."
         </p>
       </div>
 
-      {/* Interactive Constellation Tracker (Timeline) */}
+      {/* INTERACTIVE HEART-SHAPED CELESTIAL CONSTELLATION CHART */}
+      <div
+        style={{
+          position: 'relative',
+          width: 'clamp(280px, 85vw, 380px)',
+          height: 'clamp(240px, 75vw, 310px)',
+          marginBottom: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <svg
+          viewBox="0 0 320 280"
+          style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'visible',
+            filter: 'drop-shadow(0 0 20px rgba(255, 45, 117, 0.25))'
+          }}
+        >
+          {/* Constellation Connecting Heart Beams */}
+          <path
+            d="M 160 75 L 235 55 L 285 110 L 250 180 L 160 245 L 70 180 L 35 110 L 85 55 Z"
+            fill="rgba(255, 45, 117, 0.03)"
+            stroke="rgba(255, 117, 143, 0.35)"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+            style={{ animation: 'spinSlow 60s linear infinite', transformOrigin: '160px 140px' }}
+          />
+
+          {/* Internal Starlight Harmonic Cross-lines */}
+          <line x1="160" y1="75" x2="160" y2="245" stroke="rgba(224, 170, 255, 0.2)" strokeWidth="1" strokeDasharray="3 3" />
+          <line x1="35" y1="110" x2="285" y2="110" stroke="rgba(224, 170, 255, 0.2)" strokeWidth="1" strokeDasharray="3 3" />
+          <line x1="85" y1="55" x2="250" y2="180" stroke="rgba(255, 117, 143, 0.15)" strokeWidth="1" />
+          <line x1="235" y1="55" x2="70" y2="180" stroke="rgba(255, 117, 143, 0.15)" strokeWidth="1" />
+
+          {/* Constellation Star Nodes */}
+          {constellationStars.map((star, idx) => {
+            const isMilestoneActive = activeMilestone === (idx % CONFIG.milestones.length);
+
+            return (
+              <g
+                key={star.id}
+                onClick={(e) => handleMilestoneClick(idx, e)}
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Active Pulsing Ring */}
+                {isMilestoneActive && (
+                  <circle
+                    cx={star.x}
+                    cy={star.y}
+                    r="16"
+                    fill="none"
+                    stroke="#ff2d75"
+                    strokeWidth="1.5"
+                    style={{ animation: 'pulseGlow 2s ease-in-out infinite' }}
+                  />
+                )}
+
+                {/* Starlight Aura */}
+                <circle
+                  cx={star.x}
+                  cy={star.y}
+                  r={isMilestoneActive ? 9 : 5}
+                  fill={isMilestoneActive ? '#ff2d75' : '#ffe49e'}
+                  style={{
+                    filter: isMilestoneActive
+                      ? 'drop-shadow(0 0 10px #ff2d75) drop-shadow(0 0 20px #9d4edd)'
+                      : 'drop-shadow(0 0 5px #ffd166)',
+                    transition: 'all 0.3s ease'
+                  }}
+                />
+
+                {/* Star center diamond */}
+                <circle cx={star.x} cy={star.y} r="2.5" fill="#ffffff" />
+              </g>
+            );
+          })}
+        </svg>
+
+        <span
+          style={{
+            position: 'absolute',
+            bottom: '-12px',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: '0.7rem',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: 'rgba(255, 182, 193, 0.75)'
+          }}
+        >
+          ✦ Tap any star to trace our journey ✦
+        </span>
+      </div>
+
+      {/* Responsive Constellation Timeline Tracker */}
       <div
         className="timeline-container"
         style={{
@@ -132,7 +242,6 @@ export default function ConstellationTimeline({ triggerBurst }) {
                   position: 'relative'
                 }}
               >
-                {/* Responsive Layout Wrapper */}
                 <div
                   className="timeline-item-wrapper"
                   style={{
@@ -274,7 +383,7 @@ export default function ConstellationTimeline({ triggerBurst }) {
                     )}
                   </div>
 
-                  {/* Empty Spacer on desktop */}
+                  {/* Spacer for desktop */}
                   <div style={{ flex: 1, maxWidth: '380px' }} className="desktop-only" />
                 </div>
               </div>
