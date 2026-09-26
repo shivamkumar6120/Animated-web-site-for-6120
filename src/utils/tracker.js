@@ -62,6 +62,30 @@ function resumeVisibleTime() {
 }
 
 // A fresh open of the link starts a new visit. Switching away keeps this one.
+function getVisitorId() {
+  try {
+    let visitorId = localStorage.getItem('nishi_universe_visitor_id');
+    if (!visitorId) {
+      visitorId = 'visitor_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+      localStorage.setItem('nishi_universe_visitor_id', visitorId);
+    }
+    return visitorId;
+  } catch (e) {
+    return '';
+  }
+}
+
+function getInviteName() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromLink = (params.get('name') || '').trim().slice(0, 40);
+    if (fromLink) sessionStorage.setItem('nishi_universe_invite_name', fromLink);
+    return sessionStorage.getItem('nishi_universe_invite_name') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 function getSessionId() {
   if (typeof window === 'undefined') return 'unknown-session';
 
@@ -222,6 +246,8 @@ export async function trackVisitorEvent(action = 'page_view', extraData = {}) {
 
     const payload = {
       sessionId,
+      visitorId: getVisitorId(),
+      inviteName: getInviteName(),
       action,
       durationSeconds: duration,
       referrer: document.referrer || 'Direct Link',

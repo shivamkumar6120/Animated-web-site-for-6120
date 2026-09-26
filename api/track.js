@@ -359,6 +359,8 @@ export default async function handler(req, res) {
 
       // Handle Distinct Session Management in Cloud Storage
       const sessionId = body.sessionId || 'session_' + Date.now();
+      const visitorId = typeof body.visitorId === 'string' ? body.visitorId.trim().slice(0, 64) : '';
+      const inviteName = typeof body.inviteName === 'string' ? body.inviteName.trim().slice(0, 40) : '';
       const durationSeconds = body.durationSeconds || 1;
       let existingSessions = await loadRecordList('universe_sessions', 'sessionId');
 
@@ -368,6 +370,8 @@ export default async function handler(req, res) {
         // New session entry
         const newSession = {
           sessionId,
+          visitorId,
+          inviteName,
           date: localDateString,
           startTime: localTimeString,
           startTimestamp: now.toISOString(),
@@ -428,6 +432,8 @@ export default async function handler(req, res) {
         const sess = existingSessions[sessionIndex];
         sess.lastActiveTime = localTimeString;
         sess.lastActiveTimestamp = now.toISOString();
+        if (visitorId && !sess.visitorId) sess.visitorId = visitorId;
+        if (inviteName) sess.inviteName = inviteName;
 
         if (durationSeconds > (sess.durationSeconds || 0)) {
           sess.durationSeconds = durationSeconds;

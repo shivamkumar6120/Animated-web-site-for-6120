@@ -200,7 +200,7 @@ export default function AdminDashboard({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '1.2rem' }}>🌸</span>
           <span>
-            <strong>How to identify Nishi:</strong> Look for the <strong>"🌸 Probable Nishi 💕"</strong> badge! Her session will show her <strong>Mobile Phone</strong> (iPhone or Android), her <strong>City & PIN code</strong>, and cellular network (Jio/Airtel).
+            <strong>Who opened it:</strong> Send a personal link such as <strong>?name=Nishi</strong>. That name is stored with the visit. The same phone also keeps one visitor code across later visits, so you can tell her browser from someone else's. A site cannot read a person's email.
           </span>
         </div>
         <div style={{ fontSize: '0.74rem', color: '#ffd166', background: 'rgba(255, 209, 102, 0.12)', padding: '4px 10px', borderRadius: '6px' }}>
@@ -374,6 +374,8 @@ export default function AdminDashboard({ onClose }) {
                     ? s.deviceType !== 'desktop'
                     : /iPhone|Android|iPad|Phone|Tablet/i.test(`${s.device || ''} ${s.os || ''}`);
                   const appleDevice = /iPhone|iPad|iOS|iPadOS|Apple/i.test(`${s.device || ''} ${s.os || ''} ${s.deviceVendor || ''}`);
+                  const sameBrowserVisits = s.visitorId ? sessions.filter((row) => row.visitorId === s.visitorId).length : 1;
+                  const visitorCode = s.visitorId ? s.visitorId.slice(-4).toUpperCase() : '';
 
                   const mapsLink = s.mapsUrl || (s.latitude && s.longitude ? `https://www.google.com/maps?q=${s.latitude},${s.longitude}` : (s.city ? `https://www.google.com/maps?q=${encodeURIComponent((s.city || '') + ' ' + (s.postal || '') + ' India')}` : null));
 
@@ -387,39 +389,24 @@ export default function AdminDashboard({ onClose }) {
                     >
                       {/* 1. Identity Badge */}
                       <td style={{ padding: '14px 10px', whiteSpace: 'nowrap' }}>
-                        {isMobile ? (
-                          <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px' }}>
-                            <span
-                              style={{
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                fontSize: '0.72rem',
-                                background: 'rgba(255, 45, 117, 0.25)',
-                                border: '1px solid #ff758f',
-                                color: '#ff758f',
-                                fontWeight: 700
-                              }}
-                            >
-                              🌸 Probable Nishi 💕
-                            </span>
-                            <span style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                              Mobile Touchscreen
-                            </span>
-                          </div>
-                        ) : (
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px' }}>
                           <span
                             style={{
                               padding: '3px 8px',
                               borderRadius: '6px',
-                              fontSize: '0.7rem',
-                              background: 'rgba(255, 255, 255, 0.1)',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
-                              color: 'rgba(255, 255, 255, 0.7)'
+                              fontSize: '0.72rem',
+                              background: s.inviteName ? 'rgba(255, 45, 117, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+                              border: s.inviteName ? '1px solid #ff758f' : '1px solid rgba(255, 255, 255, 0.2)',
+                              color: s.inviteName ? '#ff758f' : 'rgba(255, 255, 255, 0.8)',
+                              fontWeight: 700
                             }}
                           >
-                            💻 Desktop PC
+                            {s.inviteName ? `🌸 ${s.inviteName}` : `Visitor ${visitorCode || 'unknown'}`}
                           </span>
-                        )}
+                          <span style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+                            {sameBrowserVisits > 1 ? `Same browser · ${sameBrowserVisits} visits` : 'First visit from this browser'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* 2. Session Start Time */}
